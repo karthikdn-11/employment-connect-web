@@ -2,6 +2,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { Building2, MapPin, Clock, DollarSign, Star, Bookmark } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 interface JobCardProps {
   job: {
@@ -23,6 +24,7 @@ interface JobCardProps {
 }
 
 export const JobCard = ({ job, onApply, onSave }: JobCardProps) => {
+  const { toast } = useToast();
   return (
     <Card className="hover:shadow-lg transition-all duration-300 border-border bg-gradient-card">
       <CardHeader className="pb-3">
@@ -101,7 +103,13 @@ export const JobCard = ({ job, onApply, onSave }: JobCardProps) => {
         <div className="flex items-center space-x-2 w-full">
           <Button 
             className="flex-1" 
-            onClick={() => onApply?.(job.id)}
+            onClick={() => {
+              toast({
+                title: "Application Submitted!",
+                description: `Your application for ${job.title} at ${job.company} has been submitted successfully.`,
+              });
+              onApply?.(job.id);
+            }}
           >
             Apply Now
           </Button>

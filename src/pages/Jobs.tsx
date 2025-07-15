@@ -95,7 +95,10 @@ export const Jobs = () => {
     location: '',
     jobType: '',
     salary: '',
-    isRemote: false
+    isRemote: false,
+    selectedJobTypes: [] as string[],
+    selectedLocations: [] as string[],
+    selectedSalaryRanges: [] as string[]
   });
 
   const handleSearch = (searchFilters: any) => {
@@ -150,7 +153,17 @@ export const Jobs = () => {
                     <div className="space-y-2">
                       {jobTypes.map((type) => (
                         <label key={type} className="flex items-center space-x-2 cursor-pointer">
-                          <input type="checkbox" className="rounded border-gray-300" />
+                          <input 
+                            type="checkbox" 
+                            className="rounded border-gray-300" 
+                            checked={filters.selectedJobTypes.includes(type)}
+                            onChange={(e) => {
+                              const updated = e.target.checked 
+                                ? [...filters.selectedJobTypes, type]
+                                : filters.selectedJobTypes.filter(t => t !== type);
+                              setFilters({...filters, selectedJobTypes: updated});
+                            }}
+                          />
                           <span className="text-sm">{type}</span>
                         </label>
                       ))}
