@@ -156,11 +156,12 @@ export const Jobs = () => {
                           <input 
                             type="checkbox" 
                             className="rounded border-gray-300" 
-                            checked={filters.selectedJobTypes.includes(type)}
+                            checked={filters.selectedJobTypes?.includes(type) || false}
                             onChange={(e) => {
+                              const currentSelected = filters.selectedJobTypes || [];
                               const updated = e.target.checked 
-                                ? [...filters.selectedJobTypes, type]
-                                : filters.selectedJobTypes.filter(t => t !== type);
+                                ? [...currentSelected, type]
+                                : currentSelected.filter(t => t !== type);
                               setFilters({...filters, selectedJobTypes: updated});
                             }}
                           />
