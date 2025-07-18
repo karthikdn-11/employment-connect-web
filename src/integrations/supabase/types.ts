@@ -14,6 +14,60 @@ export type Database = {
   }
   public: {
     Tables: {
+      jobs: {
+        Row: {
+          company: string
+          created_at: string
+          description: string
+          id: string
+          is_featured: boolean | null
+          is_remote: boolean | null
+          location: string
+          posted_by: string | null
+          requirements: string | null
+          salary_max: number | null
+          salary_min: number | null
+          tags: string[] | null
+          title: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          company: string
+          created_at?: string
+          description: string
+          id?: string
+          is_featured?: boolean | null
+          is_remote?: boolean | null
+          location: string
+          posted_by?: string | null
+          requirements?: string | null
+          salary_max?: number | null
+          salary_min?: number | null
+          tags?: string[] | null
+          title: string
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          company?: string
+          created_at?: string
+          description?: string
+          id?: string
+          is_featured?: boolean | null
+          is_remote?: boolean | null
+          location?: string
+          posted_by?: string | null
+          requirements?: string | null
+          salary_max?: number | null
+          salary_min?: number | null
+          tags?: string[] | null
+          title?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           account_type: string | null
