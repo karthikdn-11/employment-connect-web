@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,17 +8,115 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
 import { Eye, EyeOff, Github, Mail, User, Building2, Briefcase } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 export const Auth = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [accountType, setAccountType] = useState("job_seeker");
+  const navigate = useNavigate();
+  const { toast } = useToast();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  useEffect(() => {
+    // Check if user is already authenticated
+    const checkUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        navigate("/");
+      }
+    };
+    checkUser();
+  }, [navigate]);
+
+  const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!email || !password) {
+      toast({
+        title: "Error",
+        description: "Please fill in all fields",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsLoading(true);
-    // TODO: Implement authentication logic
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setIsLoading(false);
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Successfully signed in!",
+      });
+      
+      navigate("/");
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to sign in",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !password || !firstName || !lastName) {
+      toast({
+        title: "Error",
+        description: "Please fill in all fields",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            first_name: firstName,
+            last_name: lastName,
+            account_type: accountType,
+          },
+          emailRedirectTo: `${window.location.origin}/`,
+        },
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Account created successfully! Please check your email to verify your account.",
+      });
+      
+      // Clear form
+      setEmail("");
+      setPassword("");
+      setFirstName("");
+      setLastName("");
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create account",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -48,13 +146,15 @@ export const Auth = () => {
               </TabsList>
               
               <TabsContent value="signin" className="space-y-4">
-                <form onSubmit={handleSubmit} className="space-y-4">
+                <form onSubmit={handleSignIn} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="email">Email</Label>
                     <Input
                       id="email"
                       type="email"
                       placeholder="Enter your email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
                       required
                     />
                   </div>
@@ -65,6 +165,8 @@ export const Auth = () => {
                         id="password"
                         type={showPassword ? 'text' : 'password'}
                         placeholder="Enter your password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
                         required
                       />
                       <Button
@@ -100,13 +202,15 @@ export const Auth = () => {
               </TabsContent>
               
               <TabsContent value="signup" className="space-y-4">
-                <form onSubmit={handleSubmit} className="space-y-4">
+                <form onSubmit={handleSignUp} className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="firstName">First Name</Label>
                       <Input
                         id="firstName"
                         placeholder="First name"
+                        value={firstName}
+                        onChange={(e) => setFirstName(e.target.value)}
                         required
                       />
                     </div>
@@ -115,6 +219,8 @@ export const Auth = () => {
                       <Input
                         id="lastName"
                         placeholder="Last name"
+                        value={lastName}
+                        onChange={(e) => setLastName(e.target.value)}
                         required
                       />
                     </div>
@@ -125,6 +231,8 @@ export const Auth = () => {
                       id="signupEmail"
                       type="email"
                       placeholder="Enter your email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
                       required
                     />
                   </div>
@@ -135,6 +243,8 @@ export const Auth = () => {
                         id="signupPassword"
                         type={showPassword ? 'text' : 'password'}
                         placeholder="Create a password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
                         required
                       />
                       <Button
@@ -156,14 +266,26 @@ export const Auth = () => {
                     <Label>Account Type</Label>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="flex items-center space-x-2">
-                        <Checkbox id="jobSeeker" name="accountType" />
+                        <Checkbox 
+                          id="jobSeeker" 
+                          checked={accountType === "job_seeker"}
+                          onCheckedChange={(checked) => {
+                            if (checked) setAccountType("job_seeker");
+                          }}
+                        />
                         <Label htmlFor="jobSeeker" className="flex items-center space-x-2">
                           <User className="h-4 w-4" />
                           <span>Job Seeker</span>
                         </Label>
                       </div>
                       <div className="flex items-center space-x-2">
-                        <Checkbox id="employer" name="accountType" />
+                        <Checkbox 
+                          id="employer" 
+                          checked={accountType === "employer"}
+                          onCheckedChange={(checked) => {
+                            if (checked) setAccountType("employer");
+                          }}
+                        />
                         <Label htmlFor="employer" className="flex items-center space-x-2">
                           <Building2 className="h-4 w-4" />
                           <span>Employer</span>
