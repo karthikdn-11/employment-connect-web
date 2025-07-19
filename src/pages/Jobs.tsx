@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Header } from '@/components/Header';
 import { JobSearch } from '@/components/JobSearch';
 import { JobCard } from '@/components/JobCard';
@@ -8,9 +9,21 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Filter, SlidersHorizontal, MapPin, Building2, Clock, DollarSign } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 export const Jobs = () => {
-  const [jobs] = useState([
+  const [jobs, setJobs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const JOBS_PER_PAGE = 6;
+
+  // Initial jobs data as fallback
+  const fallbackJobs = [
     {
       id: '1',
       title: 'Senior Frontend Developer',
@@ -89,7 +102,87 @@ export const Jobs = () => {
       isFeatured: true,
       tags: ['AWS', 'Kubernetes', 'Docker', 'Terraform']
     }
-  ]);
+  ];
+
+  useEffect(() => {
+    fetchJobs();
+  }, []);
+
+  const fetchJobs = async (loadMore = false) => {
+    try {
+      if (loadMore) {
+        setLoadingMore(true);
+      } else {
+        setLoading(true);
+      }
+
+      const currentOffset = loadMore ? offset : 0;
+      
+      const { data, error } = await supabase
+        .from('jobs')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .range(currentOffset, currentOffset + JOBS_PER_PAGE - 1);
+
+      if (error) {
+        console.error('Error fetching jobs:', error);
+        // Use fallback data on error
+        if (!loadMore) {
+          setJobs(fallbackJobs);
+        }
+        return;
+      }
+
+      const transformedJobs = data?.map(job => ({
+        id: job.id,
+        title: job.title,
+        company: job.company,
+        location: job.location,
+        type: job.type,
+        salary: job.salary_min && job.salary_max 
+          ? `$${job.salary_min / 1000}k - $${job.salary_max / 1000}k`
+          : 'Competitive',
+        description: job.description,
+        postedAt: new Date(job.created_at).toLocaleDateString(),
+        isRemote: job.is_remote,
+        isFeatured: job.is_featured,
+        tags: job.tags || []
+      })) || [];
+
+      if (loadMore) {
+        setJobs(prev => [...prev, ...transformedJobs]);
+        setOffset(currentOffset + JOBS_PER_PAGE);
+      } else {
+        setJobs(transformedJobs.length > 0 ? transformedJobs : fallbackJobs);
+        setOffset(JOBS_PER_PAGE);
+      }
+
+      setHasMore(transformedJobs.length === JOBS_PER_PAGE);
+    } catch (error) {
+      console.error('Error:', error);
+      if (!loadMore) {
+        setJobs(fallbackJobs);
+      }
+      toast({
+        title: "Error",
+        description: "Failed to load jobs. Showing sample data.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
+  };
+
+  const handleLoadMore = () => {
+    if (!loadingMore && hasMore) {
+      fetchJobs(true);
+    }
+  };
+
+  const handleJobClick = (jobId: string) => {
+    navigate(`/jobs/${jobId}`);
+  };
 
   const [filters, setFilters] = useState({
     location: '',
@@ -256,22 +349,38 @@ export const Jobs = () => {
               </div>
               
               <div className="space-y-4">
-                {jobs.map((job) => (
-                  <JobCard 
-                    key={job.id} 
-                    job={job}
-                    onApply={(jobId) => console.log('Apply to job:', jobId)}
-                    onSave={(jobId) => console.log('Save job:', jobId)}
-                  />
-                ))}
+                {loading && jobs.length === 0 ? (
+                  <div className="space-y-4">
+                    {[1, 2, 3].map((n) => (
+                      <div key={n} className="h-48 bg-muted animate-pulse rounded-lg" />
+                    ))}
+                  </div>
+                ) : (
+                  jobs.map((job) => (
+                    <div key={job.id} onClick={() => handleJobClick(job.id)} className="cursor-pointer">
+                      <JobCard 
+                        job={job}
+                        onApply={(jobId) => console.log('Apply to job:', jobId)}
+                        onSave={(jobId) => console.log('Save job:', jobId)}
+                      />
+                    </div>
+                  ))
+                )}
               </div>
               
-              {/* Pagination */}
-              <div className="mt-8 text-center">
-                <Button variant="outline" size="lg">
-                  Load More Jobs
-                </Button>
-              </div>
+              {/* Load More */}
+              {hasMore && (
+                <div className="mt-8 text-center">
+                  <Button 
+                    variant="outline" 
+                    size="lg" 
+                    onClick={handleLoadMore}
+                    disabled={loadingMore}
+                  >
+                    {loadingMore ? 'Loading...' : 'Load More Jobs'}
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         </div>

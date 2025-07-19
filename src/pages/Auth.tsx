@@ -53,12 +53,21 @@ export const Auth = () => {
 
       if (error) throw error;
 
+      // Get user profile to determine redirect
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('account_type')
+        .eq('user_id', (await supabase.auth.getUser()).data.user?.id)
+        .single();
+
       toast({
         title: "Success",
         description: "Successfully signed in!",
       });
       
-      navigate("/");
+      // Redirect based on account type
+      const redirectPath = profile?.account_type === 'employer' ? '/post-job' : '/dashboard';
+      navigate(redirectPath);
     } catch (error: any) {
       toast({
         title: "Error",
@@ -102,6 +111,10 @@ export const Auth = () => {
         title: "Success",
         description: "Account created successfully! Please check your email to verify your account.",
       });
+      
+      // Redirect based on account type after signup
+      const redirectPath = accountType === 'employer' ? '/post-job' : '/dashboard';
+      navigate(redirectPath);
       
       // Clear form
       setEmail("");
