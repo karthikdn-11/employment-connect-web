@@ -95,8 +95,8 @@ const Companies = () => {
   const filteredCompanies = companies.filter(company => {
     const matchesSearch = company.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          company.description.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesIndustry = !selectedIndustry || company.industry === selectedIndustry;
-    const matchesSize = !selectedSize || company.size === selectedSize;
+    const matchesIndustry = !selectedIndustry || selectedIndustry === 'all' || company.industry === selectedIndustry;
+    const matchesSize = !selectedSize || selectedSize === 'all' || company.size === selectedSize;
     
     return matchesSearch && matchesIndustry && matchesSize;
   });
@@ -143,7 +143,7 @@ const Companies = () => {
                 <SelectValue placeholder="Industry" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Industries</SelectItem>
+                <SelectItem value="all">All Industries</SelectItem>
                 {industries.map(industry => (
                   <SelectItem key={industry} value={industry}>{industry}</SelectItem>
                 ))}
@@ -154,7 +154,7 @@ const Companies = () => {
                 <SelectValue placeholder="Company Size" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Sizes</SelectItem>
+                <SelectItem value="all">All Sizes</SelectItem>
                 {companySizes.map(size => (
                   <SelectItem key={size} value={size}>{size} employees</SelectItem>
                 ))}
