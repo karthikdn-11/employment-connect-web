@@ -8,6 +8,7 @@ import Index from "./pages/Index";
 import { Auth } from "./pages/Auth";
 import { Jobs } from "./pages/Jobs";
 import { JobDetails } from "./pages/JobDetails";
+import { CompanyDetails } from "./pages/CompanyDetails";
 import { Dashboard } from "./pages/Dashboard";
 import { PostJob } from "./pages/PostJob";
 import About from "./pages/About";
@@ -31,6 +32,7 @@ const App = () => (
           <Route path="/jobs/:jobId" element={<JobDetails />} />
           <Route path="/about" element={<About />} />
           <Route path="/companies" element={<Companies />} />
+          <Route path="/companies/:companyId" element={<CompanyDetails />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/post-job" element={<PostJob />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

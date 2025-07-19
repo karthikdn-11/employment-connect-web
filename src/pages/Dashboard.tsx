@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Header } from '@/components/Header';
 import { JobCard } from '@/components/JobCard';
 import { Button } from '@/components/ui/button';
@@ -6,6 +6,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/hooks/use-toast';
 import { 
   User, 
   Briefcase, 
@@ -23,64 +26,220 @@ import {
   XCircle
 } from 'lucide-react';
 
+interface Application {
+  id: string;
+  job_id: string;
+  status: string;
+  applied_at: string;
+  jobs: {
+    title: string;
+    company: string;
+  };
+}
+
+interface SavedJob {
+  id: string;
+  title: string;
+  company: string;
+  location: string;
+  type: string;
+  salary_min?: number;
+  salary_max?: number;
+  description: string;
+  is_remote: boolean;
+  is_featured: boolean;
+  tags?: string[];
+  created_at: string;
+}
+
 export const Dashboard = () => {
-  const [savedJobs] = useState([
-    {
-      id: '1',
-      title: 'Senior Frontend Developer',
-      company: 'TechCorp Inc.',
-      location: 'San Francisco, CA',
-      type: 'Full Time',
-      salary: '$120k - $160k',
-      description: 'Join our innovative team to build cutting-edge web applications using React, TypeScript, and modern development practices.',
-      postedAt: '2 days ago',
-      isRemote: true,
-      isFeatured: true,
-      tags: ['React', 'TypeScript', 'JavaScript', 'CSS']
-    },
-    {
-      id: '2',
-      title: 'UX/UI Designer',
-      company: 'Design Studio',
-      location: 'New York, NY',
-      type: 'Full Time',
-      salary: '$90k - $120k',
-      description: 'Create beautiful and intuitive user experiences for web and mobile applications.',
-      postedAt: '1 week ago',
-      isRemote: false,
-      isFeatured: false,
-      tags: ['Figma', 'Adobe XD', 'User Research', 'Prototyping']
-    }
-  ]);
-
-  const [applications] = useState([
-    {
-      id: '1',
-      jobTitle: 'Senior Frontend Developer',
-      company: 'TechCorp Inc.',
-      appliedAt: '2 days ago',
-      status: 'Under Review',
-      statusColor: 'bg-warning'
-    },
-    {
-      id: '2',
-      jobTitle: 'Full Stack Engineer',
-      company: 'StartupCo',
-      appliedAt: '1 week ago',
-      status: 'Interview Scheduled',
-      statusColor: 'bg-success'
-    },
-    {
-      id: '3',
-      jobTitle: 'Product Manager',
-      company: 'ProductCorp',
-      appliedAt: '2 weeks ago',
-      status: 'Rejected',
-      statusColor: 'bg-destructive'
-    }
-  ]);
-
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [savedJobs, setSavedJobs] = useState<SavedJob[]>([]);
+  const [applications, setApplications] = useState<Application[]>([]);
+  const [loading, setLoading] = useState(true);
   const profileCompleteness = 75;
+
+  useEffect(() => {
+    if (user) {
+      fetchApplications();
+      fetchSavedJobs();
+    }
+  }, [user]);
+
+  const fetchApplications = async () => {
+    if (!user) return;
+
+    try {
+      // First get applications
+      const { data: appsData, error: appsError } = await supabase
+        .from('applications')
+        .select('id, job_id, status, applied_at')
+        .eq('user_id', user.id)
+        .order('applied_at', { ascending: false });
+
+      if (appsError) {
+        console.error('Error fetching applications:', appsError);
+        return;
+      }
+
+      // Then get job details for each application
+      if (appsData && appsData.length > 0) {
+        const jobIds = appsData.map(app => app.job_id);
+        const { data: jobsData, error: jobsError } = await supabase
+          .from('jobs')
+          .select('id, title, company')
+          .in('id', jobIds);
+
+        if (jobsError) {
+          console.error('Error fetching jobs:', jobsError);
+          return;
+        }
+
+        // Combine applications with job data
+        const appsWithJobs = appsData.map(app => {
+          const job = jobsData?.find(j => j.id === app.job_id);
+          return {
+            ...app,
+            jobs: job || { title: 'Unknown Job', company: 'Unknown Company' }
+          };
+        });
+
+        setApplications(appsWithJobs);
+      } else {
+        setApplications([]);
+      }
+    } catch (error) {
+      console.error('Error:', error);
+    }
+  };
+
+  const fetchSavedJobs = async () => {
+    if (!user) return;
+
+    try {
+      // First get saved jobs
+      const { data: savedData, error: savedError } = await supabase
+        .from('saved_jobs')
+        .select('id, job_id')
+        .eq('user_id', user.id)
+        .order('saved_at', { ascending: false });
+
+      if (savedError) {
+        console.error('Error fetching saved jobs:', savedError);
+        setLoading(false);
+        return;
+      }
+
+      // Then get job details
+      if (savedData && savedData.length > 0) {
+        const jobIds = savedData.map(item => item.job_id);
+        const { data: jobsData, error: jobsError } = await supabase
+          .from('jobs')
+          .select('*')
+          .in('id', jobIds);
+
+        if (jobsError) {
+          console.error('Error fetching jobs:', jobsError);
+        } else {
+          const jobsWithSavedId = jobsData?.map(job => {
+            const savedItem = savedData.find(item => item.job_id === job.id);
+            return {
+              ...job,
+              savedId: savedItem?.id
+            };
+          }) || [];
+          setSavedJobs(jobsWithSavedId);
+        }
+      } else {
+        setSavedJobs([]);
+      }
+    } catch (error) {
+      console.error('Error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleApply = async (jobId: string) => {
+    if (!user) return;
+
+    try {
+      const { error } = await supabase
+        .from('applications')
+        .insert({
+          user_id: user.id,
+          job_id: jobId,
+          status: 'pending'
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: "Application Submitted",
+        description: "Your application has been submitted successfully!",
+      });
+
+      fetchApplications(); // Refresh applications
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to submit application",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleRemoveSaved = async (savedId: string) => {
+    try {
+      const { error } = await supabase
+        .from('saved_jobs')
+        .delete()
+        .eq('id', savedId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Job Removed",
+        description: "Job removed from saved jobs",
+      });
+
+      fetchSavedJobs(); // Refresh saved jobs
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to remove saved job",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status.toLowerCase()) {
+      case 'pending':
+      case 'under review':
+        return 'bg-warning';
+      case 'interview scheduled':
+      case 'accepted':
+        return 'bg-success';
+      case 'rejected':
+        return 'bg-destructive';
+      default:
+        return 'bg-secondary';
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    const now = new Date();
+    const date = new Date(dateString);
+    const diffTime = Math.abs(now.getTime() - date.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 1) return '1 day ago';
+    if (diffDays < 7) return `${diffDays} days ago`;
+    if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
+    return `${Math.floor(diffDays / 30)} months ago`;
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -144,8 +303,8 @@ export const Dashboard = () => {
                   <Briefcase className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">23</div>
-                  <p className="text-xs text-muted-foreground">+2 from last week</p>
+                  <div className="text-2xl font-bold">{applications.length}</div>
+                  <p className="text-xs text-muted-foreground">Total applications</p>
                 </CardContent>
               </Card>
               <Card>
@@ -154,8 +313,8 @@ export const Dashboard = () => {
                   <BookmarkCheck className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">47</div>
-                  <p className="text-xs text-muted-foreground">+5 from last week</p>
+                  <div className="text-2xl font-bold">{savedJobs.length}</div>
+                  <p className="text-xs text-muted-foreground">Jobs saved</p>
                 </CardContent>
               </Card>
               <Card>
@@ -186,32 +345,62 @@ export const Dashboard = () => {
                   </Button>
                 </div>
                 
-                <div className="space-y-4">
-                  {applications.map((app) => (
-                    <Card key={app.id}>
-                      <CardContent className="pt-6">
-                        <div className="flex items-center justify-between">
-                          <div className="space-y-1">
-                            <h4 className="font-medium">{app.jobTitle}</h4>
-                            <p className="text-sm text-muted-foreground">{app.company}</p>
-                            <p className="text-xs text-muted-foreground">Applied {app.appliedAt}</p>
+                {loading ? (
+                  <div className="space-y-4">
+                    {[1, 2, 3].map((i) => (
+                      <Card key={i}>
+                        <CardContent className="pt-6">
+                          <div className="animate-pulse space-y-2">
+                            <div className="h-4 bg-muted rounded w-48"></div>
+                            <div className="h-3 bg-muted rounded w-32"></div>
+                            <div className="h-3 bg-muted rounded w-24"></div>
                           </div>
-                          <div className="text-right">
-                            <Badge className={`${app.statusColor} text-white`}>
-                              {app.status}
-                            </Badge>
-                            <div className="flex items-center space-x-2 mt-2">
-                              <Button variant="outline" size="sm">
-                                <Eye className="h-4 w-4 mr-1" />
-                                View
-                              </Button>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                ) : applications.length > 0 ? (
+                  <div className="space-y-4">
+                    {applications.map((app) => (
+                      <Card key={app.id}>
+                        <CardContent className="pt-6">
+                          <div className="flex items-center justify-between">
+                            <div className="space-y-1">
+                              <h4 className="font-medium">{app.jobs.title}</h4>
+                              <p className="text-sm text-muted-foreground">{app.jobs.company}</p>
+                              <p className="text-xs text-muted-foreground">Applied {formatDate(app.applied_at)}</p>
+                            </div>
+                            <div className="text-right">
+                              <Badge className={`${getStatusColor(app.status)} text-white`}>
+                                {app.status}
+                              </Badge>
+                              <div className="flex items-center space-x-2 mt-2">
+                                <Button variant="outline" size="sm">
+                                  <Eye className="h-4 w-4 mr-1" />
+                                  View
+                                </Button>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                ) : (
+                  <Card>
+                    <CardContent className="pt-6 text-center">
+                      <Briefcase className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                      <h3 className="font-medium mb-2">No Applications Yet</h3>
+                      <p className="text-muted-foreground mb-4">
+                        Start applying to jobs to track your applications here.
+                      </p>
+                      <Button>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Browse Jobs
+                      </Button>
+                    </CardContent>
+                  </Card>
+                )}
               </TabsContent>
               
               <TabsContent value="saved" className="space-y-4">
@@ -222,16 +411,54 @@ export const Dashboard = () => {
                   </Button>
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {savedJobs.map((job) => (
-                    <JobCard 
-                      key={job.id} 
-                      job={job}
-                      onApply={(jobId) => console.log('Apply to job:', jobId)}
-                      onSave={(jobId) => console.log('Remove from saved:', jobId)}
-                    />
-                  ))}
-                </div>
+                {loading ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {[1, 2].map((i) => (
+                      <Card key={i}>
+                        <CardContent className="pt-6">
+                          <div className="animate-pulse space-y-4">
+                            <div className="h-6 bg-muted rounded w-48"></div>
+                            <div className="h-4 bg-muted rounded w-32"></div>
+                            <div className="h-16 bg-muted rounded"></div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                ) : savedJobs.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {savedJobs.map((job) => (
+                      <JobCard 
+                        key={job.id} 
+                        job={{
+                          ...job,
+                          salary: job.salary_min && job.salary_max 
+                            ? `$${job.salary_min / 1000}k - $${job.salary_max / 1000}k`
+                            : 'Competitive Salary',
+                          postedAt: formatDate(job.created_at),
+                          isRemote: job.is_remote,
+                          isFeatured: job.is_featured,
+                          tags: job.tags || []
+                        }}
+                        onApply={handleApply}
+                        onSave={() => handleRemoveSaved((job as any).savedId)}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <Card>
+                    <CardContent className="pt-6 text-center">
+                      <BookmarkCheck className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                      <h3 className="font-medium mb-2">No Saved Jobs</h3>
+                      <p className="text-muted-foreground mb-4">
+                        Save jobs you're interested in to keep track of them here.
+                      </p>
+                      <Button>
+                        Browse More Jobs
+                      </Button>
+                    </CardContent>
+                  </Card>
+                )}
               </TabsContent>
               
               <TabsContent value="interviews" className="space-y-4">

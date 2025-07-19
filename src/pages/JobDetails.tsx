@@ -300,7 +300,11 @@ export const JobDetails = () => {
                   </div>
                 </div>
                 
-                <Button variant="outline" className="w-full">
+                <Button 
+                  variant="outline" 
+                  className="w-full"
+                  onClick={() => navigate(`/companies/1`)} // Using default company ID for now
+                >
                   View Company Profile
                 </Button>
               </CardContent>

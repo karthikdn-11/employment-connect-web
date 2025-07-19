@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { Button } from '@/components/ui/button';
@@ -22,6 +23,7 @@ interface Company {
 }
 
 const Companies = () => {
+  const navigate = useNavigate();
   const [companies, setCompanies] = useState<Company[]>([
     {
       id: '1',
@@ -209,7 +211,10 @@ const Companies = () => {
                         {company.openJobs} open jobs
                       </span>
                     </div>
-                    <Button className="w-full mt-4">
+                    <Button 
+                      className="w-full mt-4"
+                      onClick={() => navigate(`/companies/${company.id}`)}
+                    >
                       View Company
                       <ArrowRight className="ml-2 h-4 w-4" />
                     </Button>
