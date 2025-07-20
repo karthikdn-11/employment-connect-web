@@ -309,7 +309,7 @@ export const Dashboard = () => {
 
       const { error } = await supabase
         .from('profiles')
-        .upsert({ user_id: user.id, ...updateData });
+        .upsert({ user_id: user.id, ...updateData }, { onConflict: 'user_id' });
 
       if (error) throw error;
 
