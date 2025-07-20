@@ -9,6 +9,7 @@ import { Auth } from "./pages/Auth";
 import { Jobs } from "./pages/Jobs";
 import { JobDetails } from "./pages/JobDetails";
 import { CompanyDetails } from "./pages/CompanyDetails";
+import JobApplication from "./pages/JobApplication";
 import { Dashboard } from "./pages/Dashboard";
 import { PostJob } from "./pages/PostJob";
 import About from "./pages/About";
@@ -30,6 +31,7 @@ const App = () => (
           <Route path="/signup" element={<Auth />} />
           <Route path="/jobs" element={<Jobs />} />
           <Route path="/jobs/:jobId" element={<JobDetails />} />
+          <Route path="/jobs/:jobId/apply" element={<JobApplication />} />
           <Route path="/about" element={<About />} />
           <Route path="/companies" element={<Companies />} />
           <Route path="/companies/:companyId" element={<CompanyDetails />} />

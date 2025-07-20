@@ -137,7 +137,7 @@ const Index = () => {
           </div>
 
           <div className="text-center">
-            <Button variant="outline" size="lg">
+            <Button variant="outline" size="lg" onClick={() => window.location.href = '/jobs'}>
               View All Jobs
               <ArrowRight className="ml-2 h-5 w-5" />
             </Button>

@@ -103,17 +103,11 @@ export const JobCard = ({ job, onApply, onSave }: JobCardProps) => {
         <div className="flex items-center space-x-2 w-full">
           <Button 
             className="flex-1" 
-            onClick={() => {
-              toast({
-                title: "Application Submitted!",
-                description: `Your application for ${job.title} at ${job.company} has been submitted successfully.`,
-              });
-              onApply?.(job.id);
-            }}
+            onClick={() => onApply?.(job.id)}
           >
             Apply Now
           </Button>
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={() => window.location.href = `/jobs/${job.id}`}>
             View Details
           </Button>
         </div>
