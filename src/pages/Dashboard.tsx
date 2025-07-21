@@ -36,6 +36,8 @@ interface Application {
   job_id: string;
   status: string;
   applied_at: string;
+  cover_letter?: string;
+  resume_url?: string;
   jobs: {
     title: string;
     company: string;
@@ -678,31 +680,72 @@ export const Dashboard = () => {
                   </Button>
                 </div>
                 
-                <Card>
-                  <CardContent className="pt-6">
-                    <div className="flex items-center justify-between">
-                      <div className="space-y-1">
-                        <h4 className="font-medium">Technical Interview</h4>
-                        <p className="text-sm text-muted-foreground">Full Stack Engineer - StartupCo</p>
-                        <p className="text-xs text-muted-foreground flex items-center">
-                          <Calendar className="h-3 w-3 mr-1" />
-                          Tomorrow, 2:00 PM
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <Badge className="bg-success text-white">
-                          <CheckCircle className="h-3 w-3 mr-1" />
-                          Confirmed
-                        </Badge>
-                        <div className="flex items-center space-x-2 mt-2">
-                          <Button variant="outline" size="sm">
-                            Join Call
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                {loading ? (
+                  <div className="space-y-4">
+                    {[1, 2].map((i) => (
+                      <Card key={i}>
+                        <CardContent className="pt-6">
+                          <div className="animate-pulse space-y-2">
+                            <div className="h-4 bg-muted rounded w-48"></div>
+                            <div className="h-3 bg-muted rounded w-32"></div>
+                            <div className="h-3 bg-muted rounded w-24"></div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                ) : applications.filter(app => app.status.toLowerCase() === 'interview scheduled').length > 0 ? (
+                  <div className="space-y-4">
+                    {applications
+                      .filter(app => app.status.toLowerCase() === 'interview scheduled')
+                      .map((app) => (
+                        <Card key={app.id}>
+                          <CardContent className="pt-6">
+                            <div className="flex items-center justify-between">
+                              <div className="space-y-1">
+                                <h4 className="font-medium">Interview - {app.jobs.title}</h4>
+                                <p className="text-sm text-muted-foreground">{app.jobs.company}</p>
+                                <p className="text-xs text-muted-foreground flex items-center">
+                                  <Calendar className="h-3 w-3 mr-1" />
+                                  Applied {formatDate(app.applied_at)}
+                                </p>
+                              </div>
+                              <div className="text-right">
+                                <Badge className="bg-success text-white">
+                                  <CheckCircle className="h-3 w-3 mr-1" />
+                                  Interview Scheduled
+                                </Badge>
+                                <div className="flex items-center space-x-2 mt-2">
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm"
+                                    onClick={() => handleViewApplication(app.job_id)}
+                                  >
+                                    <Eye className="h-4 w-4 mr-1" />
+                                    View Details
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                  </div>
+                ) : (
+                  <Card>
+                    <CardContent className="pt-6 text-center">
+                      <Calendar className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                      <h3 className="font-medium mb-2">No Interviews Scheduled</h3>
+                      <p className="text-muted-foreground mb-4">
+                        When you get interview invitations, they'll appear here.
+                      </p>
+                      <Button onClick={handleBrowseJobs}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Apply to More Jobs
+                      </Button>
+                    </CardContent>
+                  </Card>
+                )}
               </TabsContent>
             </Tabs>
           </div>
