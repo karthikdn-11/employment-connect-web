@@ -1,15 +1,56 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Menu, X, Search, User, Briefcase, Building2, LogOut } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 export const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [profile, setProfile] = useState<any>(null);
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (user) {
+      fetchProfile();
+    }
+  }, [user]);
+
+  const fetchProfile = async () => {
+    if (!user) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('first_name, last_name')
+        .eq('user_id', user.id)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching profile:', error);
+        return;
+      }
+
+      if (data) {
+        setProfile(data);
+      }
+    } catch (error) {
+      console.error('Error:', error);
+    }
+  };
+
+  const getUserDisplayName = () => {
+    if (profile?.first_name && profile?.last_name) {
+      return `${profile.first_name} ${profile.last_name}`;
+    }
+    if (profile?.first_name) {
+      return profile.first_name;
+    }
+    return user?.email?.split('@')[0] || 'User';
+  };
 
   const handleSignOut = async () => {
     try {
@@ -75,7 +116,7 @@ export const Header = () => {
                 <Button variant="ghost" size="sm" asChild>
                   <Link to="/dashboard">
                     <User className="h-4 w-4 mr-2" />
-                    Dashboard
+                    {getUserDisplayName()}
                   </Link>
                 </Button>
                 <Button variant="ghost" size="sm" onClick={handleSignOut}>
@@ -150,7 +191,7 @@ export const Header = () => {
                     <Button variant="ghost" size="sm" className="w-full justify-start" asChild>
                       <Link to="/dashboard" onClick={() => setIsMenuOpen(false)}>
                         <User className="h-4 w-4 mr-2" />
-                        Dashboard
+                        {getUserDisplayName()}
                       </Link>
                     </Button>
                     <Button variant="ghost" size="sm" className="w-full justify-start" onClick={() => {

@@ -74,7 +74,25 @@ export const Dashboard = () => {
     experience_years: '',
     skills: ''
   });
-  const profileCompleteness = 75;
+  // Calculate dynamic profile completeness
+  const calculateProfileCompleteness = () => {
+    if (!profile) return 0;
+    
+    const fields = [
+      profile.first_name,
+      profile.last_name,
+      profile.phone,
+      profile.bio,
+      profile.experience_years,
+      profile.skills && profile.skills.length > 0,
+      user?.email // Email is always available from auth
+    ];
+    
+    const filledFields = fields.filter(field => field && field !== '').length;
+    return Math.round((filledFields / fields.length) * 100);
+  };
+
+  const profileCompleteness = calculateProfileCompleteness();
 
   useEffect(() => {
     if (user) {
