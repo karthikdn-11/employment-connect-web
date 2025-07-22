@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Header } from '@/components/Header';
 import { JobSearch } from '@/components/JobSearch';
 import { JobCard } from '@/components/JobCard';
@@ -8,8 +9,15 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ArrowRight, Star, TrendingUp, Shield, Zap } from 'lucide-react';
 import heroImage from '@/assets/hero-image.jpg';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 const Index = () => {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { toast } = useToast();
+  
   // Sample job data
   const [jobs] = useState([
     {
@@ -58,6 +66,77 @@ const Index = () => {
     // TODO: Implement actual search functionality
   };
 
+  const handleGetStarted = () => {
+    if (user) {
+      navigate('/jobs');
+    } else {
+      navigate('/login');
+    }
+  };
+
+  const handleApply = async (jobId: string) => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    
+    try {
+      const { error } = await supabase
+        .from('applications')
+        .insert([
+          {
+            job_id: jobId,
+            user_id: user.id,
+            status: 'pending'
+          }
+        ]);
+
+      if (error) throw error;
+
+      toast({
+        title: "Application Submitted",
+        description: "Your application has been submitted successfully!",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to submit application. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleSave = async (jobId: string) => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    
+    try {
+      const { error } = await supabase
+        .from('saved_jobs')
+        .insert([
+          {
+            job_id: jobId,
+            user_id: user.id
+          }
+        ]);
+
+      if (error) throw error;
+
+      toast({
+        title: "Job Saved",
+        description: "Job saved to your favorites",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to save job. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
@@ -83,7 +162,7 @@ const Index = () => {
                 Your next career move is just a click away.
               </p>
               <div className="flex flex-col sm:flex-row gap-4">
-                <Button size="lg" className="text-lg px-8">
+                <Button size="lg" className="text-lg px-8" onClick={handleGetStarted}>
                   Get Started
                   <ArrowRight className="ml-2 h-5 w-5" />
                 </Button>
@@ -130,8 +209,8 @@ const Index = () => {
               <JobCard 
                 key={job.id} 
                 job={job}
-                onApply={(jobId) => console.log('Apply to job:', jobId)}
-                onSave={(jobId) => console.log('Save job:', jobId)}
+                onApply={handleApply}
+                onSave={handleSave}
               />
             ))}
           </div>

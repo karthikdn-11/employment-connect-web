@@ -11,6 +11,7 @@ import { ArrowLeft, MapPin, Building2, Users, Calendar, Globe, Briefcase } from 
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { JobCard } from '@/components/JobCard';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Company {
   id: string;
@@ -44,6 +45,7 @@ export const CompanyDetails = () => {
   const { companyId } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
   const [company, setCompany] = useState<Company | null>(null);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
@@ -115,18 +117,67 @@ export const CompanyDetails = () => {
     }
   };
 
-  const handleApply = (jobId: string) => {
-    toast({
-      title: "Application Submitted",
-      description: "Your application has been submitted successfully!",
-    });
+  const handleApply = async (jobId: string) => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    
+    try {
+      const { error } = await supabase
+        .from('applications')
+        .insert([
+          {
+            job_id: jobId,
+            user_id: user.id,
+            status: 'pending'
+          }
+        ]);
+
+      if (error) throw error;
+
+      toast({
+        title: "Application Submitted",
+        description: "Your application has been submitted successfully!",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to submit application. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleSave = (jobId: string) => {
-    toast({
-      title: "Job Saved",
-      description: "Job saved to your favorites",
-    });
+  const handleSave = async (jobId: string) => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    
+    try {
+      const { error } = await supabase
+        .from('saved_jobs')
+        .insert([
+          {
+            job_id: jobId,
+            user_id: user.id
+          }
+        ]);
+
+      if (error) throw error;
+
+      toast({
+        title: "Job Saved",
+        description: "Job saved to your favorites",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to save job. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   if (loading) {

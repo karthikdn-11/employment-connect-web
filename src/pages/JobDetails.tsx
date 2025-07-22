@@ -9,6 +9,7 @@ import { Separator } from '@/components/ui/separator';
 import { ArrowLeft, MapPin, Building2, Clock, DollarSign, Calendar, Users, Star, Bookmark } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Job {
   id: string;
@@ -30,6 +31,7 @@ export const JobDetails = () => {
   const { jobId } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
   const [job, setJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
   const [isSaved, setIsSaved] = useState(false);
@@ -75,19 +77,82 @@ export const JobDetails = () => {
     }
   };
 
-  const handleApply = () => {
-    toast({
-      title: "Application Submitted",
-      description: "Your application has been submitted successfully!",
-    });
+  const handleApply = async () => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    
+    try {
+      const { error } = await supabase
+        .from('applications')
+        .insert([
+          {
+            job_id: jobId,
+            user_id: user.id,
+            status: 'pending'
+          }
+        ]);
+
+      if (error) throw error;
+
+      toast({
+        title: "Application Submitted",
+        description: "Your application has been submitted successfully!",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to submit application. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleSave = () => {
-    setIsSaved(!isSaved);
-    toast({
-      title: isSaved ? "Job Removed" : "Job Saved",
-      description: isSaved ? "Job removed from saved jobs" : "Job saved to your favorites",
-    });
+  const handleSave = async () => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    
+    try {
+      if (isSaved) {
+        const { error } = await supabase
+          .from('saved_jobs')
+          .delete()
+          .eq('job_id', jobId)
+          .eq('user_id', user.id);
+
+        if (error) throw error;
+        setIsSaved(false);
+        toast({
+          title: "Job Removed",
+          description: "Job removed from saved jobs",
+        });
+      } else {
+        const { error } = await supabase
+          .from('saved_jobs')
+          .insert([
+            {
+              job_id: jobId,
+              user_id: user.id
+            }
+          ]);
+
+        if (error) throw error;
+        setIsSaved(true);
+        toast({
+          title: "Job Saved",
+          description: "Job saved to your favorites",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to save job. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const getSalaryDisplay = (job: Job) => {
@@ -303,7 +368,21 @@ export const JobDetails = () => {
                 <Button 
                   variant="outline" 
                   className="w-full"
-                  onClick={() => navigate(`/companies/1`)} // Using default company ID for now
+                  onClick={() => {
+                    // Find company by name in companies table
+                    supabase
+                      .from('companies')
+                      .select('id')
+                      .eq('name', job?.company)
+                      .single()
+                      .then(({ data, error }) => {
+                        if (data && !error) {
+                          navigate(`/companies/${data.id}`);
+                        } else {
+                          navigate('/companies');
+                        }
+                      });
+                  }}
                 >
                   View Company Profile
                 </Button>

@@ -11,6 +11,7 @@ import { Separator } from '@/components/ui/separator';
 import { Filter, SlidersHorizontal, MapPin, Building2, Clock, DollarSign } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 
 export const Jobs = () => {
   const [jobs, setJobs] = useState<any[]>([]);
@@ -20,6 +21,7 @@ export const Jobs = () => {
   const [hasMore, setHasMore] = useState(true);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
   const JOBS_PER_PAGE = 6;
 
   // Initial jobs data as fallback
@@ -182,6 +184,69 @@ export const Jobs = () => {
 
   const handleJobClick = (jobId: string) => {
     navigate(`/jobs/${jobId}`);
+  };
+
+  const handleApply = async (jobId: string) => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    
+    try {
+      const { error } = await supabase
+        .from('applications')
+        .insert([
+          {
+            job_id: jobId,
+            user_id: user.id,
+            status: 'pending'
+          }
+        ]);
+
+      if (error) throw error;
+
+      toast({
+        title: "Application Submitted",
+        description: "Your application has been submitted successfully!",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to submit application. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleSave = async (jobId: string) => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    
+    try {
+      const { error } = await supabase
+        .from('saved_jobs')
+        .insert([
+          {
+            job_id: jobId,
+            user_id: user.id
+          }
+        ]);
+
+      if (error) throw error;
+
+      toast({
+        title: "Job Saved",
+        description: "Job saved to your favorites",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to save job. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const [filters, setFilters] = useState({
@@ -360,8 +425,8 @@ export const Jobs = () => {
                     <div key={job.id} onClick={() => handleJobClick(job.id)} className="cursor-pointer">
                       <JobCard 
                         job={job}
-                        onApply={(jobId) => console.log('Apply to job:', jobId)}
-                        onSave={(jobId) => console.log('Save job:', jobId)}
+                        onApply={handleApply}
+                        onSave={handleSave}
                       />
                     </div>
                   ))
