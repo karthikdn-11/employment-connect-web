@@ -357,6 +357,32 @@ export const Dashboard = () => {
     navigate(`/jobs/${jobId}`);
   };
 
+  const handleWithdrawApplication = async (applicationId: string) => {
+    try {
+      const { error } = await supabase
+        .from('applications')
+        .delete()
+        .eq('id', applicationId)
+        .eq('user_id', user?.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Application withdrawn successfully",
+      });
+
+      // Refresh applications
+      fetchApplications();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to withdraw application",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
@@ -575,6 +601,9 @@ export const Dashboard = () => {
                               <h4 className="font-medium">{app.jobs.title}</h4>
                               <p className="text-sm text-muted-foreground">{app.jobs.company}</p>
                               <p className="text-xs text-muted-foreground">Applied {formatDate(app.applied_at)}</p>
+                              {app.cover_letter && (
+                                <p className="text-xs text-muted-foreground">Cover letter submitted</p>
+                              )}
                             </div>
                             <div className="text-right">
                               <Badge className={`${getStatusColor(app.status)} text-white`}>
@@ -587,8 +616,18 @@ export const Dashboard = () => {
                                   onClick={() => handleViewApplication(app.job_id)}
                                 >
                                   <Eye className="h-4 w-4 mr-1" />
-                                  View
+                                  View Job
                                 </Button>
+                                {app.status === 'pending' && (
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm"
+                                    onClick={() => handleWithdrawApplication(app.id)}
+                                  >
+                                    <XCircle className="h-4 w-4 mr-1" />
+                                    Withdraw
+                                  </Button>
+                                )}
                               </div>
                             </div>
                           </div>

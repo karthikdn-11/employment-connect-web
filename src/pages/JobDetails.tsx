@@ -39,8 +39,29 @@ export const JobDetails = () => {
   useEffect(() => {
     if (jobId) {
       fetchJobDetails();
+      checkIfSaved();
     }
-  }, [jobId]);
+  }, [jobId, user]);
+
+  const checkIfSaved = async () => {
+    if (!user || !jobId) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('saved_jobs')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('job_id', jobId)
+        .single();
+
+      if (!error && data) {
+        setIsSaved(true);
+      }
+    } catch (error) {
+      // Job not saved, which is fine
+      setIsSaved(false);
+    }
+  };
 
   const fetchJobDetails = async () => {
     try {
@@ -116,6 +137,8 @@ export const JobDetails = () => {
     }
     
     try {
+      console.log('Save job attempt:', { jobId, userId: user.id, isSaved });
+      
       if (isSaved) {
         const { error } = await supabase
           .from('saved_jobs')
@@ -123,23 +146,31 @@ export const JobDetails = () => {
           .eq('job_id', jobId)
           .eq('user_id', user.id);
 
-        if (error) throw error;
+        if (error) {
+          console.error('Delete saved job error:', error);
+          throw error;
+        }
         setIsSaved(false);
         toast({
           title: "Job Removed",
           description: "Job removed from saved jobs",
         });
       } else {
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('saved_jobs')
           .insert([
             {
               job_id: jobId,
               user_id: user.id
             }
-          ]);
+          ])
+          .select();
 
-        if (error) throw error;
+        if (error) {
+          console.error('Insert saved job error:', error);
+          throw error;
+        }
+        console.log('Saved job successfully:', data);
         setIsSaved(true);
         toast({
           title: "Job Saved",
@@ -147,6 +178,7 @@ export const JobDetails = () => {
         });
       }
     } catch (error) {
+      console.error('Handle save error:', error);
       toast({
         title: "Error",
         description: "Failed to save job. Please try again.",
