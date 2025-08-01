@@ -65,6 +65,8 @@ export const Dashboard = () => {
   const navigate = useNavigate();
   const [savedJobs, setSavedJobs] = useState<SavedJob[]>([]);
   const [applications, setApplications] = useState<Application[]>([]);
+  const [postedJobs, setPostedJobs] = useState<any[]>([]);
+  const [jobApplications, setJobApplications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<any>(null);
   const [editProfileOpen, setEditProfileOpen] = useState(false);
@@ -76,6 +78,7 @@ export const Dashboard = () => {
     experience_years: '',
     skills: ''
   });
+
   // Calculate dynamic profile completeness
   const calculateProfileCompleteness = () => {
     if (!profile) return 0;
@@ -98,11 +101,21 @@ export const Dashboard = () => {
 
   useEffect(() => {
     if (user) {
-      fetchApplications();
-      fetchSavedJobs();
       fetchProfile();
     }
   }, [user]);
+
+  useEffect(() => {
+    if (user && profile) {
+      if (profile.account_type === 'employer') {
+        fetchPostedJobs();
+        fetchJobApplications();
+      } else {
+        fetchApplications();
+        fetchSavedJobs();
+      }
+    }
+  }, [user, profile]);
 
   const fetchProfile = async () => {
     if (!user) return;
@@ -226,6 +239,50 @@ export const Dashboard = () => {
       console.error('Error:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchPostedJobs = async () => {
+    if (!user) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('jobs')
+        .select('*')
+        .eq('posted_by', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setPostedJobs(data || []);
+    } catch (error) {
+      console.error('Error fetching posted jobs:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchJobApplications = async () => {
+    if (!user || postedJobs.length === 0) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('applications')
+        .select(`
+          id,
+          job_id,
+          user_id,
+          status,
+          applied_at,
+          jobs (title, company),
+          profiles (first_name, last_name)
+        `)
+        .in('job_id', postedJobs.map(job => job.id))
+        .order('applied_at', { ascending: false });
+
+      if (error) throw error;
+      setJobApplications(data || []);
+    } catch (error) {
+      console.error('Error fetching job applications:', error);
     }
   };
 
@@ -383,6 +440,30 @@ export const Dashboard = () => {
     }
   };
 
+  const handleUpdateApplicationStatus = async (applicationId: string, status: string) => {
+    try {
+      const { error } = await supabase
+        .from('applications')
+        .update({ status })
+        .eq('id', applicationId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: `Application ${status}`,
+      });
+
+      fetchJobApplications();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update application status",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
@@ -403,7 +484,7 @@ export const Dashboard = () => {
                     : user?.email || 'User'}
                 </CardTitle>
                 <CardDescription>
-                  {profile?.bio || 'Job Seeker'}
+                  {profile?.bio || (profile?.account_type === 'employer' ? 'Employer' : 'Job Seeker')}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -523,270 +604,473 @@ export const Dashboard = () => {
             <div className="mb-6">
               <h1 className="text-3xl font-bold text-foreground mb-2">Dashboard</h1>
               <p className="text-muted-foreground">
-                Welcome back, {profile?.first_name || 'there'}! Here's what's happening with your job search.
+                Welcome back, {profile?.first_name || 'there'}! 
+                {profile?.account_type === 'employer' 
+                  ? " Here's what's happening with your job postings." 
+                  : " Here's what's happening with your job search."
+                }
               </p>
             </div>
             
-            {/* Quick Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Applications</CardTitle>
-                  <Briefcase className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{applications.length}</div>
-                  <p className="text-xs text-muted-foreground">Total applications</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Saved Jobs</CardTitle>
-                  <BookmarkCheck className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{savedJobs.length}</div>
-                  <p className="text-xs text-muted-foreground">Jobs saved</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Profile Views</CardTitle>
-                  <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">156</div>
-                  <p className="text-xs text-muted-foreground">+12 from last week</p>
-                </CardContent>
-              </Card>
-            </div>
-            
-            <Tabs defaultValue="applications" className="w-full">
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="applications">Applications</TabsTrigger>
-                <TabsTrigger value="saved">Saved Jobs</TabsTrigger>
-                <TabsTrigger value="interviews">Interviews</TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="applications" className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold">Your Applications</h3>
-                  <Button variant="outline" size="sm" onClick={handleBrowseJobs}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Apply to More Jobs
-                  </Button>
+            {profile?.account_type === 'employer' ? (
+              // Employer Dashboard
+              <>
+                {/* Employer Quick Stats */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Posted Jobs</CardTitle>
+                      <Briefcase className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{postedJobs.length}</div>
+                      <p className="text-xs text-muted-foreground">Total job postings</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Applications</CardTitle>
+                      <BookmarkCheck className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{jobApplications.length}</div>
+                      <p className="text-xs text-muted-foreground">Total applications received</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Active Jobs</CardTitle>
+                      <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{postedJobs.filter(job => job.status === 'active').length}</div>
+                      <p className="text-xs text-muted-foreground">Currently hiring</p>
+                    </CardContent>
+                  </Card>
                 </div>
                 
-                {loading ? (
-                  <div className="space-y-4">
-                    {[1, 2, 3].map((i) => (
-                      <Card key={i}>
-                        <CardContent className="pt-6">
-                          <div className="animate-pulse space-y-2">
-                            <div className="h-4 bg-muted rounded w-48"></div>
-                            <div className="h-3 bg-muted rounded w-32"></div>
-                            <div className="h-3 bg-muted rounded w-24"></div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                ) : applications.length > 0 ? (
-                  <div className="space-y-4">
-                    {applications.map((app) => (
-                      <Card key={app.id}>
-                        <CardContent className="pt-6">
-                          <div className="flex items-center justify-between">
-                            <div className="space-y-1">
-                              <h4 className="font-medium">{app.jobs.title}</h4>
-                              <p className="text-sm text-muted-foreground">{app.jobs.company}</p>
-                              <p className="text-xs text-muted-foreground">Applied {formatDate(app.applied_at)}</p>
-                              {app.cover_letter && (
-                                <p className="text-xs text-muted-foreground">Cover letter submitted</p>
-                              )}
-                            </div>
-                            <div className="text-right">
-                              <Badge className={`${getStatusColor(app.status)} text-white`}>
-                                {app.status}
-                              </Badge>
-                              <div className="flex items-center space-x-2 mt-2">
-                                <Button 
-                                  variant="outline" 
-                                  size="sm"
-                                  onClick={() => handleViewApplication(app.job_id)}
-                                >
-                                  <Eye className="h-4 w-4 mr-1" />
-                                  View Job
-                                </Button>
-                                {app.status === 'pending' && (
-                                  <Button 
-                                    variant="outline" 
-                                    size="sm"
-                                    onClick={() => handleWithdrawApplication(app.id)}
-                                  >
-                                    <XCircle className="h-4 w-4 mr-1" />
-                                    Withdraw
-                                  </Button>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                ) : (
-                  <Card>
-                    <CardContent className="pt-6 text-center">
-                      <Briefcase className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                      <h3 className="font-medium mb-2">No Applications Yet</h3>
-                      <p className="text-muted-foreground mb-4">
-                        Start applying to jobs to track your applications here.
-                      </p>
-                      <Button onClick={handleBrowseJobs}>
+                <Tabs defaultValue="posted-jobs" className="w-full">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="posted-jobs">Posted Jobs</TabsTrigger>
+                    <TabsTrigger value="applications">Applications</TabsTrigger>
+                  </TabsList>
+                  
+                  <TabsContent value="posted-jobs" className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-lg font-semibold">Your Posted Jobs</h3>
+                      <Button onClick={() => navigate('/post-job')}>
                         <Plus className="h-4 w-4 mr-2" />
-                        Browse Jobs
+                        Post New Job
                       </Button>
-                    </CardContent>
-                  </Card>
-                )}
-              </TabsContent>
-              
-              <TabsContent value="saved" className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold">Saved Jobs</h3>
-                  <Button variant="outline" size="sm" onClick={handleBrowseJobs}>
-                    Browse More Jobs
-                  </Button>
-                </div>
-                
-                {loading ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {[1, 2].map((i) => (
-                      <Card key={i}>
-                        <CardContent className="pt-6">
-                          <div className="animate-pulse space-y-4">
-                            <div className="h-6 bg-muted rounded w-48"></div>
-                            <div className="h-4 bg-muted rounded w-32"></div>
-                            <div className="h-16 bg-muted rounded"></div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                ) : savedJobs.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {savedJobs.map((job) => (
-                      <JobCard 
-                        key={job.id} 
-                        job={{
-                          ...job,
-                          salary: job.salary_min && job.salary_max 
-                            ? `$${job.salary_min / 1000}k - $${job.salary_max / 1000}k`
-                            : 'Competitive Salary',
-                          postedAt: formatDate(job.created_at),
-                          isRemote: job.is_remote,
-                          isFeatured: job.is_featured,
-                          tags: job.tags || []
-                        }}
-                        onApply={handleApply}
-                        onSave={() => handleRemoveSaved((job as any).savedId)}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <Card>
-                    <CardContent className="pt-6 text-center">
-                      <BookmarkCheck className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                      <h3 className="font-medium mb-2">No Saved Jobs</h3>
-                      <p className="text-muted-foreground mb-4">
-                        Save jobs you're interested in to keep track of them here.
-                      </p>
-                      <Button onClick={handleBrowseJobs}>
-                        Browse More Jobs
-                      </Button>
-                    </CardContent>
-                  </Card>
-                )}
-              </TabsContent>
-              
-              <TabsContent value="interviews" className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold">Upcoming Interviews</h3>
-                  <Button variant="outline" size="sm">
-                    <Calendar className="h-4 w-4 mr-2" />
-                    View Calendar
-                  </Button>
-                </div>
-                
-                {loading ? (
-                  <div className="space-y-4">
-                    {[1, 2].map((i) => (
-                      <Card key={i}>
-                        <CardContent className="pt-6">
-                          <div className="animate-pulse space-y-2">
-                            <div className="h-4 bg-muted rounded w-48"></div>
-                            <div className="h-3 bg-muted rounded w-32"></div>
-                            <div className="h-3 bg-muted rounded w-24"></div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                ) : applications.filter(app => app.status.toLowerCase() === 'interview scheduled').length > 0 ? (
-                  <div className="space-y-4">
-                    {applications
-                      .filter(app => app.status.toLowerCase() === 'interview scheduled')
-                      .map((app) => (
-                        <Card key={app.id}>
-                          <CardContent className="pt-6">
-                            <div className="flex items-center justify-between">
-                              <div className="space-y-1">
-                                <h4 className="font-medium">Interview - {app.jobs.title}</h4>
-                                <p className="text-sm text-muted-foreground">{app.jobs.company}</p>
-                                <p className="text-xs text-muted-foreground flex items-center">
-                                  <Calendar className="h-3 w-3 mr-1" />
-                                  Applied {formatDate(app.applied_at)}
-                                </p>
+                    </div>
+                    
+                    {loading ? (
+                      <div className="space-y-4">
+                        {[1, 2, 3].map((i) => (
+                          <Card key={i}>
+                            <CardContent className="pt-6">
+                              <div className="animate-pulse space-y-2">
+                                <div className="h-4 bg-muted rounded w-48"></div>
+                                <div className="h-3 bg-muted rounded w-32"></div>
+                                <div className="h-3 bg-muted rounded w-24"></div>
                               </div>
-                              <div className="text-right">
-                                <Badge className="bg-success text-white">
-                                  <CheckCircle className="h-3 w-3 mr-1" />
-                                  Interview Scheduled
-                                </Badge>
-                                <div className="flex items-center space-x-2 mt-2">
-                                  <Button 
-                                    variant="outline" 
-                                    size="sm"
-                                    onClick={() => handleViewApplication(app.job_id)}
-                                  >
-                                    <Eye className="h-4 w-4 mr-1" />
-                                    View Details
-                                  </Button>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    ) : postedJobs.length > 0 ? (
+                      <div className="space-y-4">
+                        {postedJobs.map((job) => (
+                          <Card key={job.id}>
+                            <CardContent className="pt-6">
+                              <div className="flex items-center justify-between">
+                                <div className="space-y-1">
+                                  <h4 className="font-medium">{job.title}</h4>
+                                  <p className="text-sm text-muted-foreground">{job.company}</p>
+                                  <p className="text-xs text-muted-foreground">Posted {formatDate(job.created_at)}</p>
+                                  <p className="text-xs text-muted-foreground">{job.location} • {job.type}</p>
+                                </div>
+                                <div className="text-right">
+                                  <Badge className={job.status === 'active' ? 'bg-success text-white' : 'bg-secondary'}>
+                                    {job.status}
+                                  </Badge>
+                                  <div className="flex items-center space-x-2 mt-2">
+                                    <Button 
+                                      variant="outline" 
+                                      size="sm"
+                                      onClick={() => navigate(`/jobs/${job.id}`)}
+                                    >
+                                      <Eye className="h-4 w-4 mr-1" />
+                                      View
+                                    </Button>
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
-                  </div>
-                ) : (
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    ) : (
+                      <Card>
+                        <CardContent className="pt-6 text-center">
+                          <Briefcase className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                          <h3 className="font-medium mb-2">No Jobs Posted Yet</h3>
+                          <p className="text-muted-foreground mb-4">
+                            Start by posting your first job to attract candidates.
+                          </p>
+                          <Button onClick={() => navigate('/post-job')}>
+                            <Plus className="h-4 w-4 mr-2" />
+                            Post Your First Job
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </TabsContent>
+                  
+                  <TabsContent value="applications" className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-lg font-semibold">Applications Received</h3>
+                    </div>
+                    
+                    {loading ? (
+                      <div className="space-y-4">
+                        {[1, 2, 3].map((i) => (
+                          <Card key={i}>
+                            <CardContent className="pt-6">
+                              <div className="animate-pulse space-y-2">
+                                <div className="h-4 bg-muted rounded w-48"></div>
+                                <div className="h-3 bg-muted rounded w-32"></div>
+                                <div className="h-3 bg-muted rounded w-24"></div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    ) : jobApplications.length > 0 ? (
+                      <div className="space-y-4">
+                        {jobApplications.map((app) => (
+                          <Card key={app.id}>
+                            <CardContent className="pt-6">
+                              <div className="flex items-center justify-between">
+                                <div className="space-y-1">
+                                  <h4 className="font-medium">{app.jobs?.title}</h4>
+                                  <p className="text-sm text-muted-foreground">
+                                    Applicant: {app.profiles?.first_name} {app.profiles?.last_name}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">Applied {formatDate(app.applied_at)}</p>
+                                  {app.cover_letter && (
+                                    <p className="text-xs text-muted-foreground">Cover letter included</p>
+                                  )}
+                                </div>
+                                <div className="text-right">
+                                  <Badge className={`${getStatusColor(app.status)} text-white`}>
+                                    {app.status}
+                                  </Badge>
+                                  <div className="flex items-center space-x-2 mt-2">
+                                    <Button 
+                                      variant="outline" 
+                                      size="sm"
+                                      onClick={() => handleUpdateApplicationStatus(app.id, 'reviewed')}
+                                      disabled={app.status !== 'pending'}
+                                    >
+                                      <CheckCircle className="h-4 w-4 mr-1" />
+                                      Review
+                                    </Button>
+                                    <Button 
+                                      variant="outline" 
+                                      size="sm"
+                                      onClick={() => handleUpdateApplicationStatus(app.id, 'rejected')}
+                                      disabled={app.status === 'rejected'}
+                                    >
+                                      <XCircle className="h-4 w-4 mr-1" />
+                                      Reject
+                                    </Button>
+                                  </div>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    ) : (
+                      <Card>
+                        <CardContent className="pt-6 text-center">
+                          <Mail className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                          <h3 className="font-medium mb-2">No Applications Yet</h3>
+                          <p className="text-muted-foreground mb-4">
+                            Applications for your job postings will appear here.
+                          </p>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </TabsContent>
+                </Tabs>
+              </>
+            ) : (
+              // Job Seeker Dashboard
+              <>
+                {/* Job Seeker Quick Stats */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
                   <Card>
-                    <CardContent className="pt-6 text-center">
-                      <Calendar className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                      <h3 className="font-medium mb-2">No Interviews Scheduled</h3>
-                      <p className="text-muted-foreground mb-4">
-                        When you get interview invitations, they'll appear here.
-                      </p>
-                      <Button onClick={handleBrowseJobs}>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Applications</CardTitle>
+                      <Briefcase className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{applications.length}</div>
+                      <p className="text-xs text-muted-foreground">Total applications</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Saved Jobs</CardTitle>
+                      <BookmarkCheck className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{savedJobs.length}</div>
+                      <p className="text-xs text-muted-foreground">Jobs saved</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Profile Views</CardTitle>
+                      <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">156</div>
+                      <p className="text-xs text-muted-foreground">+12 from last week</p>
+                    </CardContent>
+                  </Card>
+                </div>
+                
+                <Tabs defaultValue="applications" className="w-full">
+                  <TabsList className="grid w-full grid-cols-3">
+                    <TabsTrigger value="applications">Applications</TabsTrigger>
+                    <TabsTrigger value="saved">Saved Jobs</TabsTrigger>
+                    <TabsTrigger value="interviews">Interviews</TabsTrigger>
+                  </TabsList>
+                  
+                  <TabsContent value="applications" className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-lg font-semibold">Your Applications</h3>
+                      <Button variant="outline" size="sm" onClick={handleBrowseJobs}>
                         <Plus className="h-4 w-4 mr-2" />
                         Apply to More Jobs
                       </Button>
-                    </CardContent>
-                  </Card>
-                )}
-              </TabsContent>
-            </Tabs>
+                    </div>
+                    
+                    {loading ? (
+                      <div className="space-y-4">
+                        {[1, 2, 3].map((i) => (
+                          <Card key={i}>
+                            <CardContent className="pt-6">
+                              <div className="animate-pulse space-y-2">
+                                <div className="h-4 bg-muted rounded w-48"></div>
+                                <div className="h-3 bg-muted rounded w-32"></div>
+                                <div className="h-3 bg-muted rounded w-24"></div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    ) : applications.length > 0 ? (
+                      <div className="space-y-4">
+                        {applications.map((app) => (
+                          <Card key={app.id}>
+                            <CardContent className="pt-6">
+                              <div className="flex items-center justify-between">
+                                <div className="space-y-1">
+                                  <h4 className="font-medium">{app.jobs.title}</h4>
+                                  <p className="text-sm text-muted-foreground">{app.jobs.company}</p>
+                                  <p className="text-xs text-muted-foreground">Applied {formatDate(app.applied_at)}</p>
+                                  {app.cover_letter && (
+                                    <p className="text-xs text-muted-foreground">Cover letter submitted</p>
+                                  )}
+                                </div>
+                                <div className="text-right">
+                                  <Badge className={`${getStatusColor(app.status)} text-white`}>
+                                    {app.status}
+                                  </Badge>
+                                  <div className="flex items-center space-x-2 mt-2">
+                                    <Button 
+                                      variant="outline" 
+                                      size="sm"
+                                      onClick={() => handleViewApplication(app.job_id)}
+                                    >
+                                      <Eye className="h-4 w-4 mr-1" />
+                                      View Job
+                                    </Button>
+                                    {app.status === 'pending' && (
+                                      <Button 
+                                        variant="outline" 
+                                        size="sm"
+                                        onClick={() => handleWithdrawApplication(app.id)}
+                                      >
+                                        <XCircle className="h-4 w-4 mr-1" />
+                                        Withdraw
+                                      </Button>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    ) : (
+                      <Card>
+                        <CardContent className="pt-6 text-center">
+                          <Briefcase className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                          <h3 className="font-medium mb-2">No Applications Yet</h3>
+                          <p className="text-muted-foreground mb-4">
+                            Start applying to jobs to track your applications here.
+                          </p>
+                          <Button onClick={handleBrowseJobs}>
+                            <Plus className="h-4 w-4 mr-2" />
+                            Browse Jobs
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </TabsContent>
+                  
+                  <TabsContent value="saved" className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-lg font-semibold">Saved Jobs</h3>
+                      <Button variant="outline" size="sm" onClick={handleBrowseJobs}>
+                        Browse More Jobs
+                      </Button>
+                    </div>
+                    
+                    {loading ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {[1, 2].map((i) => (
+                          <Card key={i}>
+                            <CardContent className="pt-6">
+                              <div className="animate-pulse space-y-4">
+                                <div className="h-6 bg-muted rounded w-48"></div>
+                                <div className="h-4 bg-muted rounded w-32"></div>
+                                <div className="h-16 bg-muted rounded"></div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    ) : savedJobs.length > 0 ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {savedJobs.map((job) => (
+                          <JobCard 
+                            key={job.id} 
+                            job={{
+                              ...job,
+                              salary: job.salary_min && job.salary_max 
+                                ? `$${job.salary_min / 1000}k - $${job.salary_max / 1000}k`
+                                : 'Competitive Salary',
+                              postedAt: formatDate(job.created_at),
+                              isRemote: job.is_remote,
+                              isFeatured: job.is_featured,
+                              tags: job.tags || []
+                            }}
+                            onApply={handleApply}
+                            onSave={() => handleRemoveSaved((job as any).savedId)}
+                          />
+                        ))}
+                      </div>
+                    ) : (
+                      <Card>
+                        <CardContent className="pt-6 text-center">
+                          <BookmarkCheck className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                          <h3 className="font-medium mb-2">No Saved Jobs</h3>
+                          <p className="text-muted-foreground mb-4">
+                            Save jobs you're interested in to keep track of them here.
+                          </p>
+                          <Button onClick={handleBrowseJobs}>
+                            Browse More Jobs
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </TabsContent>
+                  
+                  <TabsContent value="interviews" className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-lg font-semibold">Upcoming Interviews</h3>
+                      <Button variant="outline" size="sm">
+                        <Calendar className="h-4 w-4 mr-2" />
+                        View Calendar
+                      </Button>
+                    </div>
+                    
+                    {loading ? (
+                      <div className="space-y-4">
+                        {[1, 2].map((i) => (
+                          <Card key={i}>
+                            <CardContent className="pt-6">
+                              <div className="animate-pulse space-y-2">
+                                <div className="h-4 bg-muted rounded w-48"></div>
+                                <div className="h-3 bg-muted rounded w-32"></div>
+                                <div className="h-3 bg-muted rounded w-24"></div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    ) : applications.filter(app => app.status.toLowerCase() === 'interview scheduled').length > 0 ? (
+                      <div className="space-y-4">
+                        {applications
+                          .filter(app => app.status.toLowerCase() === 'interview scheduled')
+                          .map((app) => (
+                            <Card key={app.id}>
+                              <CardContent className="pt-6">
+                                <div className="flex items-center justify-between">
+                                  <div className="space-y-1">
+                                    <h4 className="font-medium">Interview - {app.jobs.title}</h4>
+                                    <p className="text-sm text-muted-foreground">{app.jobs.company}</p>
+                                    <p className="text-xs text-muted-foreground flex items-center">
+                                      <Calendar className="h-3 w-3 mr-1" />
+                                      Applied {formatDate(app.applied_at)}
+                                    </p>
+                                  </div>
+                                  <div className="text-right">
+                                    <Badge className="bg-success text-white">
+                                      <CheckCircle className="h-3 w-3 mr-1" />
+                                      Interview Scheduled
+                                    </Badge>
+                                    <div className="flex items-center space-x-2 mt-2">
+                                      <Button 
+                                        variant="outline" 
+                                        size="sm"
+                                        onClick={() => handleViewApplication(app.job_id)}
+                                      >
+                                        <Eye className="h-4 w-4 mr-1" />
+                                        View Details
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          ))}
+                      </div>
+                    ) : (
+                      <Card>
+                        <CardContent className="pt-6 text-center">
+                          <Calendar className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                          <h3 className="font-medium mb-2">No Interviews Scheduled</h3>
+                          <p className="text-muted-foreground mb-4">
+                            When you get interview invitations, they'll appear here.
+                          </p>
+                          <Button onClick={handleBrowseJobs}>
+                            <Plus className="h-4 w-4 mr-2" />
+                            Apply to More Jobs
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </TabsContent>
+                </Tabs>
+              </>
+            )}
           </div>
         </div>
       </div>
