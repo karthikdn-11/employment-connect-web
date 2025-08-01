@@ -25,7 +25,7 @@ export const Header = () => {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('first_name, last_name')
+        .select('first_name, last_name, account_type')
         .eq('user_id', user.id)
         .single();
 
@@ -83,24 +83,35 @@ export const Header = () => {
 
           {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center space-x-8">
-            <Link 
-              to="/jobs" 
-              className="text-foreground hover:text-primary transition-colors duration-200"
-            >
-              Find Jobs
-            </Link>
-            <Link 
-              to="/companies" 
-              className="text-foreground hover:text-primary transition-colors duration-200"
-            >
-              Companies
-            </Link>
-            <Link 
-              to="/post-job" 
-              className="text-foreground hover:text-primary transition-colors duration-200"
-            >
-              Post a Job
-            </Link>
+            {/* Navigation for Job Seekers */}
+            {(!user || profile?.account_type === 'job_seeker') && (
+              <>
+                <Link 
+                  to="/jobs" 
+                  className="text-foreground hover:text-primary transition-colors duration-200"
+                >
+                  Find Jobs
+                </Link>
+                <Link 
+                  to="/companies" 
+                  className="text-foreground hover:text-primary transition-colors duration-200"
+                >
+                  Companies
+                </Link>
+              </>
+            )}
+            
+            {/* Navigation for Employers */}
+            {user && profile?.account_type === 'employer' && (
+              <Link 
+                to="/post-job" 
+                className="text-foreground hover:text-primary transition-colors duration-200"
+              >
+                Post a Job
+              </Link>
+            )}
+            
+            {/* About page for everyone */}
             <Link 
               to="/about" 
               className="text-foreground hover:text-primary transition-colors duration-200"
@@ -154,30 +165,41 @@ export const Header = () => {
         {isMenuOpen && (
           <div className="md:hidden py-4 border-t border-border">
             <nav className="space-y-4">
-              <Link 
-                to="/jobs" 
-                className="flex items-center space-x-2 text-foreground hover:text-primary transition-colors duration-200"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                <Search className="h-4 w-4" />
-                <span>Find Jobs</span>
-              </Link>
-              <Link 
-                to="/companies" 
-                className="flex items-center space-x-2 text-foreground hover:text-primary transition-colors duration-200"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                <Building2 className="h-4 w-4" />
-                <span>Companies</span>
-              </Link>
-              <Link 
-                to="/post-job" 
-                className="flex items-center space-x-2 text-foreground hover:text-primary transition-colors duration-200"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                <Briefcase className="h-4 w-4" />
-                <span>Post a Job</span>
-              </Link>
+              {/* Mobile Navigation for Job Seekers */}
+              {(!user || profile?.account_type === 'job_seeker') && (
+                <>
+                  <Link 
+                    to="/jobs" 
+                    className="flex items-center space-x-2 text-foreground hover:text-primary transition-colors duration-200"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    <Search className="h-4 w-4" />
+                    <span>Find Jobs</span>
+                  </Link>
+                  <Link 
+                    to="/companies" 
+                    className="flex items-center space-x-2 text-foreground hover:text-primary transition-colors duration-200"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    <Building2 className="h-4 w-4" />
+                    <span>Companies</span>
+                  </Link>
+                </>
+              )}
+              
+              {/* Mobile Navigation for Employers */}
+              {user && profile?.account_type === 'employer' && (
+                <Link 
+                  to="/post-job" 
+                  className="flex items-center space-x-2 text-foreground hover:text-primary transition-colors duration-200"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  <Briefcase className="h-4 w-4" />
+                  <span>Post a Job</span>
+                </Link>
+              )}
+              
+              {/* About page for everyone */}
               <Link 
                 to="/about" 
                 className="flex items-center space-x-2 text-foreground hover:text-primary transition-colors duration-200"
