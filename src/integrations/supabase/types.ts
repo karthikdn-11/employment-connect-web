@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instanciate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "12.2.3 (519615d)"
+    PostgrestVersion: "12.2.12 (cd3cf9e)"
   }
   public: {
     Tables: {
@@ -83,6 +83,47 @@ export type Database = {
         }
         Relationships: []
       }
+      job_applications: {
+        Row: {
+          applicant_id: string
+          applied_at: string
+          cover_letter: string | null
+          id: string
+          job_id: string
+          resume_url: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          applicant_id: string
+          applied_at?: string
+          cover_letter?: string | null
+          id?: string
+          job_id: string
+          resume_url?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          applicant_id?: string
+          applied_at?: string
+          cover_letter?: string | null
+          id?: string
+          job_id?: string
+          resume_url?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_applications_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       jobs: {
         Row: {
           company: string
@@ -96,6 +137,7 @@ export type Database = {
           requirements: string | null
           salary_max: number | null
           salary_min: number | null
+          status: string
           tags: string[] | null
           title: string
           type: string
@@ -113,6 +155,7 @@ export type Database = {
           requirements?: string | null
           salary_max?: number | null
           salary_min?: number | null
+          status?: string
           tags?: string[] | null
           title: string
           type: string
@@ -130,6 +173,7 @@ export type Database = {
           requirements?: string | null
           salary_max?: number | null
           salary_min?: number | null
+          status?: string
           tags?: string[] | null
           title?: string
           type?: string
@@ -140,30 +184,63 @@ export type Database = {
       profiles: {
         Row: {
           account_type: string | null
+          bio: string | null
+          company_description: string | null
+          company_name: string | null
+          company_website: string | null
           created_at: string
+          education: string | null
+          experience_years: number | null
           first_name: string | null
           id: string
           last_name: string | null
+          linkedin_url: string | null
+          phone: string | null
+          resume_url: string | null
+          skills: string[] | null
           updated_at: string
           user_id: string
+          website_url: string | null
         }
         Insert: {
           account_type?: string | null
+          bio?: string | null
+          company_description?: string | null
+          company_name?: string | null
+          company_website?: string | null
           created_at?: string
+          education?: string | null
+          experience_years?: number | null
           first_name?: string | null
           id?: string
           last_name?: string | null
+          linkedin_url?: string | null
+          phone?: string | null
+          resume_url?: string | null
+          skills?: string[] | null
           updated_at?: string
           user_id: string
+          website_url?: string | null
         }
         Update: {
           account_type?: string | null
+          bio?: string | null
+          company_description?: string | null
+          company_name?: string | null
+          company_website?: string | null
           created_at?: string
+          education?: string | null
+          experience_years?: number | null
           first_name?: string | null
           id?: string
           last_name?: string | null
+          linkedin_url?: string | null
+          phone?: string | null
+          resume_url?: string | null
+          skills?: string[] | null
           updated_at?: string
           user_id?: string
+          website_url?: string | null
         }
         Relationships: []
       }
