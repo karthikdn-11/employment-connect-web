@@ -1,6 +1,10 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -24,6 +28,8 @@ import {
 } from 'lucide-react';
 
 export const PostJob = () => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [jobData, setJobData] = useState({
     title: '',
     company: '',
@@ -55,13 +61,89 @@ export const PostJob = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!user) {
+      toast.error('You must be logged in to post a job');
+      return;
+    }
+
     setIsLoading(true);
     
-    // TODO: Implement job posting logic
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    console.log('Job posted:', { ...jobData, skills });
-    setIsLoading(false);
+    try {
+      // Parse salary range or use as single value
+      let salaryMin = null;
+      let salaryMax = null;
+      
+      if (jobData.salary) {
+        const salaryMatch = jobData.salary.match(/\$?(\d+)(?:k?)?\s*-?\s*\$?(\d+)?(?:k?)?/i);
+        if (salaryMatch) {
+          salaryMin = parseInt(salaryMatch[1]) * (jobData.salary.toLowerCase().includes('k') ? 1000 : 1);
+          if (salaryMatch[2]) {
+            salaryMax = parseInt(salaryMatch[2]) * (jobData.salary.toLowerCase().includes('k') ? 1000 : 1);
+          }
+        } else {
+          // Single number
+          const singleSalary = parseInt(jobData.salary.replace(/\D/g, ''));
+          if (singleSalary) {
+            salaryMin = singleSalary * (jobData.salary.toLowerCase().includes('k') ? 1000 : 1);
+          }
+        }
+      }
+
+      const jobToInsert = {
+        title: jobData.title,
+        company: jobData.company,
+        location: jobData.location,
+        type: jobData.type,
+        description: jobData.description,
+        requirements: jobData.requirements,
+        salary_min: salaryMin,
+        salary_max: salaryMax,
+        is_remote: jobData.isRemote,
+        is_featured: jobData.isFeatured,
+        tags: skills,
+        posted_by: user.id,
+        status: 'active'
+      };
+
+      const { data, error } = await supabase
+        .from('jobs')
+        .insert([jobToInsert])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      console.log('Job posted:', { ...jobData, skills });
+      toast.success('Job posted successfully!');
+      
+      // Reset form
+      setJobData({
+        title: '',
+        company: '',
+        location: '',
+        type: '',
+        salary: '',
+        description: '',
+        requirements: '',
+        benefits: '',
+        deadline: '',
+        isRemote: false,
+        isFeatured: false
+      });
+      setSkills([]);
+      
+      // Navigate to dashboard after a brief delay
+      setTimeout(() => {
+        navigate('/dashboard');
+      }, 1500);
+      
+    } catch (error) {
+      console.error('Error posting job:', error);
+      toast.error('Failed to post job. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
