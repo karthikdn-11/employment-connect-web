@@ -262,9 +262,25 @@ export const Dashboard = () => {
   };
 
   const fetchJobApplications = async () => {
-    if (!user || postedJobs.length === 0) return;
+    if (!user) return;
 
     try {
+      // Get all jobs posted by this employer
+      const { data: employerJobs, error: jobsError } = await supabase
+        .from('jobs')
+        .select('id')
+        .eq('posted_by', user.id);
+
+      if (jobsError) throw jobsError;
+
+      if (!employerJobs || employerJobs.length === 0) {
+        setJobApplications([]);
+        return;
+      }
+
+      const jobIds = employerJobs.map(job => job.id);
+
+      // Get applications for those jobs
       const { data, error } = await supabase
         .from('applications')
         .select(`
@@ -272,15 +288,39 @@ export const Dashboard = () => {
           job_id,
           user_id,
           status,
-          applied_at,
-          jobs (title, company),
-          profiles (first_name, last_name)
+          applied_at
         `)
-        .in('job_id', postedJobs.map(job => job.id))
+        .in('job_id', jobIds)
         .order('applied_at', { ascending: false });
 
       if (error) throw error;
-      setJobApplications(data || []);
+
+      // Get job details and applicant profiles
+      const applicationsWithDetails = await Promise.all(
+        (data || []).map(async (app) => {
+          // Get job details
+          const { data: jobData } = await supabase
+            .from('jobs')
+            .select('title, company')
+            .eq('id', app.job_id)
+            .single();
+
+          // Get applicant profile
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('first_name, last_name')
+            .eq('user_id', app.user_id)
+            .single();
+
+          return {
+            ...app,
+            job: jobData,
+            applicant: profileData
+          };
+        })
+      );
+
+      setJobApplications(applicationsWithDetails);
     } catch (error) {
       console.error('Error fetching job applications:', error);
     }
