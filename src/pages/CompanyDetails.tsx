@@ -48,6 +48,8 @@ export const CompanyDetails = () => {
   const { user } = useAuth();
   const [company, setCompany] = useState<Company | null>(null);
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [appliedJobs, setAppliedJobs] = useState<Set<string>>(new Set());
+  const [savedJobs, setSavedJobs] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -56,6 +58,39 @@ export const CompanyDetails = () => {
       fetchCompanyJobs();
     }
   }, [companyId]);
+
+  useEffect(() => {
+    if (user && jobs.length > 0) {
+      fetchUserJobStatus();
+    }
+  }, [user, jobs]);
+
+  const fetchUserJobStatus = async () => {
+    if (!user) return;
+
+    try {
+      const jobIds = jobs.map(job => job.id);
+
+      // Fetch user's applications
+      const { data: applications } = await supabase
+        .from('applications')
+        .select('job_id')
+        .eq('user_id', user.id)
+        .in('job_id', jobIds);
+
+      // Fetch user's saved jobs
+      const { data: savedJobsData } = await supabase
+        .from('saved_jobs')
+        .select('job_id')
+        .eq('user_id', user.id)
+        .in('job_id', jobIds);
+
+      setAppliedJobs(new Set(applications?.map(app => app.job_id) || []));
+      setSavedJobs(new Set(savedJobsData?.map(saved => saved.job_id) || []));
+    } catch (error) {
+      console.error('Error fetching user job status:', error);
+    }
+  };
 
   const fetchCompanyDetails = async () => {
     try {
@@ -122,6 +157,15 @@ export const CompanyDetails = () => {
       navigate('/login');
       return;
     }
+
+    if (appliedJobs.has(jobId)) {
+      toast({
+        title: "Already Applied",
+        description: "You have already applied to this job",
+        variant: "destructive",
+      });
+      return;
+    }
     
     try {
       const { error } = await supabase
@@ -136,14 +180,20 @@ export const CompanyDetails = () => {
 
       if (error) throw error;
 
+      // Update local state
+      setAppliedJobs(prev => new Set([...prev, jobId]));
+
       toast({
         title: "Application Submitted",
         description: "Your application has been submitted successfully!",
       });
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Error applying to job:', error);
       toast({
         title: "Error",
-        description: "Failed to submit application. Please try again.",
+        description: error.message === 'duplicate key value violates unique constraint "applications_pkey"' 
+          ? "You have already applied to this job"
+          : "Failed to submit application. Please try again.",
         variant: "destructive",
       });
     }
@@ -152,6 +202,15 @@ export const CompanyDetails = () => {
   const handleSave = async (jobId: string) => {
     if (!user) {
       navigate('/login');
+      return;
+    }
+
+    if (savedJobs.has(jobId)) {
+      toast({
+        title: "Already Saved",
+        description: "This job is already in your saved jobs",
+        variant: "destructive",
+      });
       return;
     }
     
@@ -167,14 +226,20 @@ export const CompanyDetails = () => {
 
       if (error) throw error;
 
+      // Update local state
+      setSavedJobs(prev => new Set([...prev, jobId]));
+
       toast({
         title: "Job Saved",
         description: "Job saved to your favorites",
       });
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Error saving job:', error);
       toast({
         title: "Error",
-        description: "Failed to save job. Please try again.",
+        description: error.message === 'duplicate key value violates unique constraint "saved_jobs_pkey"'
+          ? "This job is already in your saved jobs"
+          : "Failed to save job. Please try again.",
         variant: "destructive",
       });
     }
