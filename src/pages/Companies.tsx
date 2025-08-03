@@ -17,79 +17,113 @@ interface Company {
   industry: string;
   location: string;
   size: string;
-  logo?: string;
+  logo_url?: string;
   openJobs: number;
-  rating?: number;
+  website?: string;
+  founded_year?: number;
 }
 
 const Companies = () => {
   const navigate = useNavigate();
-  const [companies, setCompanies] = useState<Company[]>([
-    {
-      id: '1',
-      name: 'TechCorp Inc.',
-      description: 'Leading technology company specializing in innovative software solutions and cutting-edge web development.',
-      industry: 'Technology',
-      location: 'San Francisco, CA',
-      size: '1000-5000',
-      openJobs: 15,
-      rating: 4.8
-    },
-    {
-      id: '2',
-      name: 'StartupXYZ',
-      description: 'Fast-growing startup revolutionizing the e-commerce space with AI-powered solutions.',
-      industry: 'E-commerce',
-      location: 'New York, NY',
-      size: '50-200',
-      openJobs: 8,
-      rating: 4.6
-    },
-    {
-      id: '3',
-      name: 'DesignStudio',
-      description: 'Creative agency focused on brand identity, UX/UI design, and digital marketing solutions.',
-      industry: 'Design',
-      location: 'Los Angeles, CA',
-      size: '10-50',
-      openJobs: 5,
-      rating: 4.9
-    },
-    {
-      id: '4',
-      name: 'DataCorp',
-      description: 'Data analytics company helping businesses make informed decisions through advanced analytics.',
-      industry: 'Analytics',
-      location: 'Seattle, WA',
-      size: '500-1000',
-      openJobs: 12,
-      rating: 4.7
-    },
-    {
-      id: '5',
-      name: 'CloudTech',
-      description: 'Cloud infrastructure provider offering scalable solutions for modern businesses.',
-      industry: 'Cloud Services',
-      location: 'Austin, TX',
-      size: '200-500',
-      openJobs: 20,
-      rating: 4.5
-    },
-    {
-      id: '6',
-      name: 'AppStudio',
-      description: 'Mobile app development company creating innovative solutions for iOS and Android platforms.',
-      industry: 'Mobile Development',
-      location: 'Boston, MA',
-      size: '100-200',
-      openJobs: 7,
-      rating: 4.4
-    }
-  ]);
-
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedIndustry, setSelectedIndustry] = useState('');
   const [selectedSize, setSelectedSize] = useState('');
+
+  useEffect(() => {
+    fetchCompanies();
+  }, []);
+
+  const fetchCompanies = async () => {
+    try {
+      // Get all companies
+      const { data: companiesData, error: companiesError } = await supabase
+        .from('companies')
+        .select('*');
+
+      if (companiesError) throw companiesError;
+
+      // Get job counts for each company
+      const companiesWithJobCounts = await Promise.all(
+        (companiesData || []).map(async (company) => {
+          const { count } = await supabase
+            .from('jobs')
+            .select('*', { count: 'exact', head: true })
+            .eq('company', company.name)
+            .eq('status', 'active');
+
+          return {
+            ...company,
+            openJobs: count || 0
+          };
+        })
+      );
+
+      setCompanies(companiesWithJobCounts);
+    } catch (error) {
+      console.error('Error fetching companies:', error);
+      // Fallback to static data if database fails
+      setCompanies([
+        {
+          id: '1',
+          name: 'TechCorp Inc.',
+          description: 'Leading technology company specializing in innovative software solutions and cutting-edge web development.',
+          industry: 'Technology',
+          location: 'San Francisco, CA',
+          size: '1000-5000',
+          openJobs: 15
+        },
+        {
+          id: '2',
+          name: 'StartupXYZ',
+          description: 'Fast-growing startup revolutionizing the e-commerce space with AI-powered solutions.',
+          industry: 'E-commerce',
+          location: 'New York, NY',
+          size: '50-200',
+          openJobs: 8
+        },
+        {
+          id: '3',
+          name: 'DesignStudio',
+          description: 'Creative agency focused on brand identity, UX/UI design, and digital marketing solutions.',
+          industry: 'Design',
+          location: 'Los Angeles, CA',
+          size: '10-50',
+          openJobs: 5
+        },
+        {
+          id: '4',
+          name: 'DataCorp',
+          description: 'Data analytics company helping businesses make informed decisions through advanced analytics.',
+          industry: 'Analytics',
+          location: 'Seattle, WA',
+          size: '500-1000',
+          openJobs: 12
+        },
+        {
+          id: '5',
+          name: 'CloudTech',
+          description: 'Cloud infrastructure provider offering scalable solutions for modern businesses.',
+          industry: 'Cloud Services',
+          location: 'Austin, TX',
+          size: '200-500',
+          openJobs: 20
+        },
+        {
+          id: '6',
+          name: 'AppStudio',
+          description: 'Mobile app development company creating innovative solutions for iOS and Android platforms.',
+          industry: 'Mobile Development',
+          location: 'Boston, MA',
+          size: '100-200',
+          openJobs: 7
+        }
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const industries = ['Technology', 'E-commerce', 'Design', 'Analytics', 'Cloud Services', 'Mobile Development'];
   const companySizes = ['1-10', '10-50', '50-200', '200-500', '500-1000', '1000-5000', '5000+'];
@@ -102,6 +136,40 @@ const Companies = () => {
     
     return matchesSearch && matchesIndustry && matchesSize;
   });
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-16">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[...Array(6)].map((_, i) => (
+              <Card key={i} className="animate-pulse">
+                <CardHeader>
+                  <div className="flex items-start space-x-3">
+                    <div className="w-12 h-12 bg-muted rounded-lg"></div>
+                    <div className="space-y-2 flex-1">
+                      <div className="h-4 bg-muted rounded w-3/4"></div>
+                      <div className="h-3 bg-muted rounded w-1/2"></div>
+                    </div>
+                  </div>
+                  <div className="h-12 bg-muted rounded mt-3"></div>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div className="h-3 bg-muted rounded"></div>
+                    <div className="h-3 bg-muted rounded"></div>
+                    <div className="h-8 bg-muted rounded"></div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -180,14 +248,6 @@ const Companies = () => {
                       </div>
                       <div>
                         <CardTitle className="text-lg">{company.name}</CardTitle>
-                        <div className="flex items-center space-x-1 mt-1">
-                          {company.rating && (
-                            <>
-                              <Star className="h-4 w-4 text-yellow-500 fill-current" />
-                              <span className="text-sm text-muted-foreground">{company.rating}</span>
-                            </>
-                          )}
-                        </div>
                       </div>
                     </div>
                   </div>
